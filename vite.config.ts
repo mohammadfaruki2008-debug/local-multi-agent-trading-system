@@ -16,4 +16,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  preview: {
+    allowedHosts: [
+      "local-multi-agent-trading-system.onrender.com", // আপনার Render হোস্ট
+      ".onrender.com" // (ঐচ্ছিক) Render-এর সব সাবডোমেইন অনুমোদন করতে
+    ]
+  }
 });
