@@ -12,7 +12,7 @@ import { daemon, PersistedSignal } from './lib/daemon';
 
 // ─── Groq API ──────────────────────────────────────────
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || ''; // Render env-এ সেট করবেন
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 
 async function askGroq(question: string, context: string = ''): Promise<string> {
   const systemPrompt = `You are TradeJarvis Hydra, an autonomous trading AI assistant.
@@ -182,8 +182,20 @@ const CommandCenter: FC = () => {
           });
         }
       } else {
-        // ⭐ General chat → Groq API (lightning fast)
-        const answer = await askGroq(userMsg);
+        // ⭐ General chat → Groq API with live prices
+        const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+        const prices: Record<string, number> = {};
+        for (const sym of symbols) {
+          try {
+            prices[sym] = await fetchPrice(sym);
+          } catch { /* ignore if fetch fails */ }
+        }
+        const priceContext = Object.entries(prices)
+          .map(([s, p]) => `${s.replace('USDT','')}: $${p?.toFixed(2)}`)
+          .join(', ');
+
+        const fullContext = `Current prices: ${priceContext || 'unavailable'}`;
+        const answer = await askGroq(userMsg, fullContext);
         pushMsg({ role: 'agent', type: 'system', content: answer });
       }
     } catch (err) {
