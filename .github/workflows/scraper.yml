@@ -1,0 +1,20 @@
+name: Weekly Knowledge Update
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # প্রতি রবিবার রাত ৩টায়
+jobs:
+  scrape-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests beautifulsoup4 supabase
+      - run: python scraper.py
+      - run: python embed_and_upload.py
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update trading knowledge [skip ci]"
