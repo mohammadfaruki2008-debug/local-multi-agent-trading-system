@@ -1,3 +1,4 @@
+import { getEmbedding, searchKnowledge } from './lib/knowledgeEngine';
 import { useState, useEffect, useRef, type FC } from 'react';
 import {
   Terminal, Shield, Zap, Activity, Bug, Send, X, Maximize2, Minimize2,
