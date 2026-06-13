@@ -1,4 +1,3 @@
-import { getEmbedding, searchKnowledge } from './lib/knowledgeEngine';
 import { useState, useEffect, useRef, type FC } from 'react';
 import {
   Terminal, Shield, Zap, Activity, Bug, Send, X, Maximize2, Minimize2,
@@ -10,7 +9,7 @@ import { DevOpsAgent, DevOpsDiagnosis } from './lib/devOpsAgent';
 import { fetchPrice } from './lib/binance';
 import { logger, LogEntry, LogEvent } from './lib/logger';
 import { daemon, PersistedSignal } from './lib/daemon';
-import { getEmbedding, searchKnowledge } from '../lib/knowledgeEngine'; // RAG যোগ
+import { getEmbedding, searchKnowledge } from './lib/knowledgeEngine'; // ✅ RAG – সঠিক পাথ
 
 // ─── Groq API ──────────────────────────────────────────
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
