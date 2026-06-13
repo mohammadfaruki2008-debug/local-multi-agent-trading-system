@@ -1,20 +1,7 @@
 import { useState, useEffect, useRef, type FC } from 'react';
 import {
-  Terminal,
-  Shield,
-  Zap,
-  Activity,
-  Bug,
-  Send,
-  X,
-  Maximize2,
-  Minimize2,
-  Plus,
-  Trash2,
-  Cpu,
-  CheckCircle2,
-  AlertTriangle,
-  CircleDot,
+  Terminal, Shield, Zap, Activity, Bug, Send, X, Maximize2, Minimize2,
+  Plus, Trash2, Cpu, CheckCircle2, AlertTriangle, CircleDot,
 } from 'lucide-react';
 import { cn } from './utils/cn';
 import { hydra, AgentResponse } from './lib/hydraEngine';
@@ -23,15 +10,42 @@ import { fetchPrice } from './lib/binance';
 import { logger, LogEntry, LogEvent } from './lib/logger';
 import { daemon, PersistedSignal } from './lib/daemon';
 
-// ─── Space API ──────────────────────────────────────────
-const SPACE_URL = 'https://m02006-hydra-brain.hf.space';
+// ─── Groq API ──────────────────────────────────────────
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || ''; // Render env-এ সেট করবেন
 
-async function askSpace(question: string, context: string = ''): Promise<string> {
-  const url = `${SPACE_URL}/ask?question=${encodeURIComponent(question)}&context=${encodeURIComponent(context)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Space API error: ${res.status}`);
-  const data = await res.json();
-  return data.answer || "Sorry, I couldn't process that.";
+async function askGroq(question: string, context: string = ''): Promise<string> {
+  const systemPrompt = `You are TradeJarvis Hydra, an autonomous trading AI assistant.
+RULES:
+1. Answer trading questions with clear analysis.
+2. When you detect a clear trading opportunity, output ONLY a JSON action block:
+   {"action":"buy","symbol":"BTCUSDT","entry":67000,"sl":66500,"tp1":68000,"tp2":69000,"tp3":70000,"confidence":85,"reasoning":"RSI divergence + MACD crossover"}
+   For sell: {"action":"sell",...}
+   For alerts: {"action":"alert","message":"BTC breaking resistance"}
+3. Only output JSON when confident (>60%).
+4. Otherwise respond conversationally with analysis.`;
+
+  const userMessage = context ? `Context: ${context}\n\nUser: ${question}` : question;
+
+  const response = await fetch(GROQ_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 300,
+      temperature: 0.7,
+    }),
+  });
+  if (!response.ok) throw new Error(`Groq API error: ${response.status}`);
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 type ChatMessage = {
@@ -168,15 +182,15 @@ const CommandCenter: FC = () => {
           });
         }
       } else {
-        // ⭐ General chat → Space API
-        const answer = await askSpace(userMsg);
+        // ⭐ General chat → Groq API (lightning fast)
+        const answer = await askGroq(userMsg);
         pushMsg({ role: 'agent', type: 'system', content: answer });
       }
     } catch (err) {
       pushMsg({
         role: 'agent',
         type: 'system',
-        content: `⚠️ Error: ${(err as Error).message}. Is the Hugging Face Space running?`,
+        content: `⚠️ Error: ${(err as Error).message}. Is the API key correct?`,
       });
     } finally {
       setIsProcessing(false);
@@ -429,7 +443,7 @@ const CommandCenter: FC = () => {
                   <Bug className="w-3 h-3 text-rose-500" /> DevOps: ON
                 </div>
                 <div className="flex items-center gap-1">
-                  <Cpu className="w-3 h-3 text-amber-500" /> Mistral-7B
+                  <Cpu className="w-3 h-3 text-amber-500" /> Groq 70B
                 </div>
                 {healEvents.length > 0 && (
                   <div className="flex items-center gap-1 text-amber-500">
