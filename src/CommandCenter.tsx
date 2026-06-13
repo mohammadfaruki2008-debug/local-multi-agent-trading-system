@@ -23,6 +23,17 @@ import { fetchPrice } from './lib/binance';
 import { logger, LogEntry, LogEvent } from './lib/logger';
 import { daemon, PersistedSignal } from './lib/daemon';
 
+// ─── Space API ──────────────────────────────────────────
+const SPACE_URL = 'https://m02006-hydra-brain.hf.space';
+
+async function askSpace(question: string, context: string = ''): Promise<string> {
+  const url = `${SPACE_URL}/ask?question=${encodeURIComponent(question)}&context=${encodeURIComponent(context)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Space API error: ${res.status}`);
+  const data = await res.json();
+  return data.answer || "Sorry, I couldn't process that.";
+}
+
 type ChatMessage = {
   id: string;
   role: 'user' | 'agent';
@@ -40,7 +51,8 @@ const CommandCenter: FC = () => {
       id: 'welcome',
       role: 'agent',
       type: 'system',
-      content: 'Hydra System Online. Monitoring pairs locally. Commands: "Analyze SOLUSDT" • "Diagnose last crash" • "Show heal report"',
+      content:
+        'Hydra System Online. Ask me anything about trading, or use commands: "Analyze SOLUSDT" • "Diagnose last crash" • "Show heal report"',
     },
   ]);
   const [input, setInput] = useState('');
@@ -48,7 +60,9 @@ const CommandCenter: FC = () => {
   const [liveLogs, setLiveLogs] = useState<LogEntry[]>(logger.getHistory(80));
   const [signals, setSignals] = useState<PersistedSignal[]>(daemon.getSignals());
   const [watchlist, setWatchlist] = useState<string[]>(daemon.getWatchlist());
-  const [healEvents, setHealEvents] = useState<Array<{ errorId: string; diagnosis: string; code?: string }>>([]);
+  const [healEvents, setHealEvents] = useState<
+    Array<{ errorId: string; diagnosis: string; code?: string }>
+  >([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,7 +81,11 @@ const CommandCenter: FC = () => {
       } else if (event.type === 'heal') {
         setHealEvents((prev) => [
           ...prev.slice(-9),
-          { errorId: event.errorId, diagnosis: event.diagnosis, code: event.correctedCode },
+          {
+            errorId: event.errorId,
+            diagnosis: event.diagnosis,
+            code: event.correctedCode,
+          },
         ]);
       }
     });
@@ -150,17 +168,15 @@ const CommandCenter: FC = () => {
           });
         }
       } else {
-        pushMsg({
-          role: 'agent',
-          type: 'system',
-          content: "Command not recognized. Try 'Analyze BTCUSDT', 'Diagnose last crash', or 'Show heal report'.",
-        });
+        // ⭐ General chat → Space API
+        const answer = await askSpace(userMsg);
+        pushMsg({ role: 'agent', type: 'system', content: answer });
       }
     } catch (err) {
       pushMsg({
         role: 'agent',
         type: 'system',
-        content: `⚠️ Local inference error: ${(err as Error).message}. Is Ollama running at http://localhost:11434?`,
+        content: `⚠️ Error: ${(err as Error).message}. Is the Hugging Face Space running?`,
       });
     } finally {
       setIsProcessing(false);
@@ -224,7 +240,9 @@ const CommandCenter: FC = () => {
                 onClick={() => setTab(t)}
                 className={cn(
                   'flex-1 py-2 text-[10px] font-mono uppercase tracking-widest transition-colors',
-                  tab === t ? 'text-emerald-400 border-b-2 border-emerald-500' : 'text-slate-600 hover:text-slate-400'
+                  tab === t
+                    ? 'text-emerald-400 border-b-2 border-emerald-500'
+                    : 'text-slate-600 hover:text-slate-400'
                 )}
               >
                 {t}
@@ -354,25 +372,28 @@ const CommandCenter: FC = () => {
                 {liveLogs.length === 0 ? (
                   <div className="text-slate-600">No logs yet.</div>
                 ) : (
-                  liveLogs.slice().reverse().map((l) => (
-                    <div
-                      key={l.id}
-                      className={cn(
-                        'flex gap-2 items-start',
-                        l.level === 'error' && 'text-rose-400',
-                        l.level === 'warn' && 'text-amber-400',
-                        l.level === 'success' && 'text-emerald-400',
-                        l.level === 'info' && 'text-slate-400',
-                        l.level === 'debug' && 'text-slate-600'
-                      )}
-                    >
-                      <span className="text-slate-600 shrink-0">
-                        {new Date(l.timestamp).toLocaleTimeString()}
-                      </span>
-                      <span className="text-slate-600 shrink-0 w-12">[{l.source}]</span>
-                      <span className="break-all">{l.message}</span>
-                    </div>
-                  ))
+                  liveLogs
+                    .slice()
+                    .reverse()
+                    .map((l) => (
+                      <div
+                        key={l.id}
+                        className={cn(
+                          'flex gap-2 items-start',
+                          l.level === 'error' && 'text-rose-400',
+                          l.level === 'warn' && 'text-amber-400',
+                          l.level === 'success' && 'text-emerald-400',
+                          l.level === 'info' && 'text-slate-400',
+                          l.level === 'debug' && 'text-slate-600'
+                        )}
+                      >
+                        <span className="text-slate-600 shrink-0">
+                          {new Date(l.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span className="text-slate-600 shrink-0 w-12">[{l.source}]</span>
+                        <span className="break-all">{l.message}</span>
+                      </div>
+                    ))
                 )}
               </div>
             )}
@@ -386,7 +407,7 @@ const CommandCenter: FC = () => {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Analyze SOLUSDT..."
+                  placeholder="Ask Jarvis anything..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-md py-2 pl-3 pr-10 text-sm font-mono text-emerald-500 focus:outline-none focus:border-emerald-500/50 placeholder:text-slate-700"
                 />
                 <button
@@ -408,7 +429,7 @@ const CommandCenter: FC = () => {
                   <Bug className="w-3 h-3 text-rose-500" /> DevOps: ON
                 </div>
                 <div className="flex items-center gap-1">
-                  <Cpu className="w-3 h-3 text-amber-500" /> Ollama Local
+                  <Cpu className="w-3 h-3 text-amber-500" /> Mistral-7B
                 </div>
                 {healEvents.length > 0 && (
                   <div className="flex items-center gap-1 text-amber-500">
