@@ -1,4 +1,3 @@
-import { getEmbedding, searchKnowledge } from '../lib/knowledgeEngine';
 import { useState, useEffect, useRef, type FC } from 'react';
 import {
   Terminal, Shield, Zap, Activity, Bug, Send, X, Maximize2, Minimize2,
@@ -10,6 +9,7 @@ import { DevOpsAgent, DevOpsDiagnosis } from './lib/devOpsAgent';
 import { fetchPrice } from './lib/binance';
 import { logger, LogEntry, LogEvent } from './lib/logger';
 import { daemon, PersistedSignal } from './lib/daemon';
+import { getEmbedding, searchKnowledge } from '../lib/knowledgeEngine'; // RAG যোগ
 
 // ─── Groq API ──────────────────────────────────────────
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -183,19 +183,27 @@ const CommandCenter: FC = () => {
           });
         }
       } else {
-        // ⭐ General chat → Groq API with live prices
+        // ⭐ General chat → Groq API with RAG & live prices
         const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
         const prices: Record<string, number> = {};
         for (const sym of symbols) {
-          try {
-            prices[sym] = await fetchPrice(sym);
-          } catch { /* ignore if fetch fails */ }
+          try { prices[sym] = await fetchPrice(sym); } catch {}
         }
         const priceContext = Object.entries(prices)
           .map(([s, p]) => `${s.replace('USDT','')}: $${p?.toFixed(2)}`)
           .join(', ');
 
-        const fullContext = `Current prices: ${priceContext || 'unavailable'}`;
+        // RAG: জ্ঞানভাণ্ডার থেকে প্রাসঙ্গিক তথ্য আনা
+        let knowledgeContext = '';
+        try {
+          const emb = await getEmbedding(userMsg);
+          const docs = await searchKnowledge(emb, 3);
+          knowledgeContext = docs.map((d: any) => d.content).join('\n---\n');
+        } catch (err) {
+          console.warn('RAG failed, continuing without knowledge:', err);
+        }
+
+        const fullContext = `Current prices: ${priceContext || 'N/A'}\nRelevant knowledge:\n${knowledgeContext || 'None'}`;
         const answer = await askGroq(userMsg, fullContext);
         pushMsg({ role: 'agent', type: 'system', content: answer });
       }
